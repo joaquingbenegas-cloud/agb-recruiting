@@ -85,7 +85,7 @@ async function apiPostPublic(body) {
 function tryJSON(str, fallback) { try { return JSON.parse(str); } catch { return fallback; } }
 function toArr(str) { if (!str) return []; const p = tryJSON(str, null); if (Array.isArray(p)) return p; return String(str).split(/\n|•/).map(s=>s.trim()).filter(Boolean); }
 function fmtMoney(n, moneda='') { if (!n && n!==0) return '—'; return (moneda?moneda+' ':'')+Number(n).toLocaleString('es-AR'); }
-function normScore(s) { const n=Number(s); if(!n&&n!==0) return null; return n>10?Math.round(n/10*10)/10:n; }
+function normScore(s) { const n=Number(s); if(!n&&n!==0) return null; if(n>10) return Math.round(n/10*10)/10; if(n>0&&n<=1) return Math.round(n*10*10)/10; return n; }
 function fmtDate(s) { if(!s) return '—'; return new Date(s).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
 function badge(t,c) { return `<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ${c}">${t}</span>`; }
 function estadoBadge(e) {
@@ -2412,70 +2412,109 @@ async function descargarNotasCandidato(id) {
     if(r.status==='ok') resumen=r.data.resumen||'';
   } catch(e) {}
   const fecha=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${c.nombre} — ${b.puesto||''}</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111;padding:52px;max-width:740px;margin:0 auto}
-.header{padding-bottom:22px;margin-bottom:32px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111}
-.name{font-size:28px;font-weight:800;margin-bottom:4px;letter-spacing:-.5px}
-.sub{color:#555;font-size:14px;font-weight:500}
-.logo{text-align:right}.logo-name{font-size:14px;font-weight:800;letter-spacing:-.3px}
-.logo-date{font-size:11px;color:#999;margin-top:3px}
-.sec-title{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#aaa;margin-bottom:12px;padding-bottom:7px;border-bottom:1px solid #f0f0f0}
-.section{margin-bottom:30px}
-.resumen{font-size:14px;line-height:1.85;color:#333;min-height:60px}
-.comentarios{font-size:14px;line-height:1.85;color:#333;min-height:40px;white-space:pre-wrap}
-.disponibilidad{font-size:14px;line-height:1.85;color:#333;min-height:24px}
-.contact-row{display:flex;gap:8px;font-size:13px;color:#555;padding:5px 0;border-bottom:1px solid #f5f5f5;align-items:baseline}
-.contact-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;width:80px;flex-shrink:0}
-.footer{margin-top:48px;padding-top:14px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
-.footer-left{font-size:11px;font-weight:700;color:#999}
-.footer-right{font-size:11px;color:#bbb}
-[contenteditable]{outline:none;border-radius:3px;min-width:20px;display:inline-block}
-[contenteditable]:hover{background:#fef9c3}
-[contenteditable]:focus{background:#fef9c3;box-shadow:0 0 0 2px #fbbf24}
-.block-edit{display:block;width:100%}
-.hint{font-size:10px;color:#d1d5db;text-align:right;margin-bottom:24px;font-style:italic}
-.print-btn{position:fixed;top:20px;right:20px;background:#111;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-@media print{.print-btn,.hint{display:none}body{padding:32px}[contenteditable]:hover,[contenteditable]:focus{background:none!important;box-shadow:none!important}}</style>
+  const monedaExp = c.moneda_expectativa||'';
+  const expStr = c.expectativa_salarial ? (monedaExp?monedaExp+' ':'')+c.expectativa_salarial : '';
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${c.nombre}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#1a1a1a;background:#fff;padding:56px 64px;max-width:780px;margin:0 auto}
+/* HEADER */
+.header{margin-bottom:36px;padding-bottom:28px;border-bottom:2.5px solid #1a1a1a}
+.header-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.logo-badge{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#888;border:1.5px solid #ddd;border-radius:4px;padding:3px 8px;display:inline-block}
+.logo-date{font-size:11px;color:#aaa;margin-top:5px;text-align:right}
+.candidate-name{font-size:34px;font-weight:900;letter-spacing:-.8px;line-height:1.1;margin-bottom:8px}
+.candidate-role{font-size:15px;color:#555;font-weight:500;display:flex;align-items:center;gap:8px}
+.candidate-role .sep{color:#ccc}
+.candidate-company{font-weight:700;color:#333}
+/* SECTIONS */
+.section{margin-bottom:34px}
+.sec-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.15em;color:#bbb;margin-bottom:10px}
+.sec-body{font-size:14px;line-height:1.9;color:#333;min-height:20px}
+.sec-body.large{font-size:14.5px;line-height:1.95}
+/* CONTACT GRID */
+.contact-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0}
+.contact-item{padding:9px 0;border-bottom:1px solid #f0f0f0;display:flex;flex-direction:column;gap:2px}
+.contact-item:nth-child(odd){padding-right:24px}
+.contact-key{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#ccc}
+.contact-val{font-size:13px;color:#444;font-weight:500}
+/* DIVIDER */
+.divider{border:none;border-top:1px solid #f0f0f0;margin:0 0 34px}
+/* FOOTER */
+.footer{margin-top:52px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
+.footer-brand{font-size:11px;font-weight:800;color:#bbb;letter-spacing:.05em}
+.footer-ref{font-size:11px;color:#ccc}
+/* EDIT */
+[contenteditable]{outline:none;border-radius:2px;min-width:4px}
+[contenteditable]:hover{background:#fffbeb}
+[contenteditable]:focus{background:#fffbeb;box-shadow:0 0 0 2px #f59e0b}
+/* TOOLBAR */
+.toolbar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.toolbar-hint{font-size:11px;color:#9ca3af}
+.print-btn{background:#fff;color:#1a1a1a;border:none;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em}
+.print-btn:hover{background:#f3f4f6}
+body{padding-top:108px}
+@media print{
+  .toolbar{display:none}
+  body{padding:40px 52px;padding-top:40px}
+  [contenteditable]:hover,[contenteditable]:focus{background:none!important;box-shadow:none!important}
+}
+</style>
 </head><body>
-<button class="print-btn" onclick="window.print()">Imprimir / PDF</button>
-<p class="hint">✏️ Hacé click en cualquier texto para editarlo antes de imprimir</p>
+<div class="toolbar">
+  <span class="toolbar-hint">✏ Hacé click en cualquier texto para editarlo · Los títulos de sección también son editables</span>
+  <button class="print-btn" onclick="window.print()">Imprimir / PDF</button>
+</div>
+
 <div class="header">
-  <div>
-    <div class="name" contenteditable="true">${c.nombre}</div>
-    <div class="sub" contenteditable="true">${b.puesto||''} · ${b.cliente||''}</div>
+  <div class="header-top">
+    <div></div>
+    <div>
+      <div class="logo-badge" contenteditable="true">KBGB Recruiting</div>
+      <div class="logo-date" contenteditable="true">${fecha}</div>
+    </div>
   </div>
-  <div class="logo">
-    <div class="logo-name">KBGB Recruiting</div>
-    <div class="logo-date">${fecha}</div>
+  <div class="candidate-name" contenteditable="true">${c.nombre}</div>
+  <div class="candidate-role">
+    <span contenteditable="true">${b.puesto||'—'}</span>
+    <span class="sep">·</span>
+    <span class="candidate-company" contenteditable="true">${b.cliente||'—'}</span>
+    ${b.modalidad?`<span class="sep">·</span><span contenteditable="true">${b.modalidad}</span>`:''}
   </div>
 </div>
 
 <div class="section">
-  <div class="sec-title">Resumen del perfil</div>
-  <div class="resumen block-edit" contenteditable="true">${resumen||'(completar)'}</div>
+  <div class="sec-label" contenteditable="true">Resumen del perfil</div>
+  <div class="sec-body large" contenteditable="true">${resumen||'(completar)'}</div>
+</div>
+
+${c.notas?`<div class="section">
+  <div class="sec-label" contenteditable="true">Comentarios</div>
+  <div class="sec-body" style="white-space:pre-wrap" contenteditable="true">${c.notas}</div>
+</div>`:`<div class="section">
+  <div class="sec-label" contenteditable="true">Comentarios</div>
+  <div class="sec-body" contenteditable="true" style="color:#bbb">(completar)</div>
+</div>`}
+
+<div class="section">
+  <div class="sec-label" contenteditable="true">Disponibilidad para entrevista</div>
+  <div class="sec-body" contenteditable="true">${c.disponibilidad||'A confirmar'}</div>
 </div>
 
 <div class="section">
-  <div class="sec-title">Comentarios</div>
-  <div class="comentarios block-edit" contenteditable="true">${c.notas||'(completar)'}</div>
-</div>
-
-<div class="section">
-  <div class="sec-title">Disponibilidad para entrevista</div>
-  <div class="disponibilidad block-edit" contenteditable="true">${c.disponibilidad||'A confirmar'}</div>
-</div>
-
-<div class="section">
-  <div class="sec-title">Datos de contacto</div>
-  ${c.contacto_email?`<div class="contact-row"><span class="contact-lbl">Email</span><span contenteditable="true">${c.contacto_email}</span></div>`:''}
-  ${c.contacto_telefono?`<div class="contact-row"><span class="contact-lbl">Teléfono</span><span contenteditable="true">${c.contacto_telefono}</span></div>`:''}
-  ${c.linkedin?`<div class="contact-row"><span class="contact-lbl">LinkedIn</span><span contenteditable="true">${c.linkedin}</span></div>`:''}
-  ${c.expectativa_salarial?`<div class="contact-row"><span class="contact-lbl">Expectativa</span><span contenteditable="true">${c.expectativa_salarial}</span></div>`:''}
+  <div class="sec-label" contenteditable="true">Datos de contacto</div>
+  <div class="contact-grid">
+    ${c.contacto_email?`<div class="contact-item"><span class="contact-key" contenteditable="true">Email</span><span class="contact-val" contenteditable="true">${c.contacto_email}</span></div>`:''}
+    ${c.contacto_telefono?`<div class="contact-item"><span class="contact-key" contenteditable="true">Teléfono</span><span class="contact-val" contenteditable="true">${c.contacto_telefono}</span></div>`:''}
+    ${c.linkedin?`<div class="contact-item"><span class="contact-key" contenteditable="true">LinkedIn</span><span class="contact-val" contenteditable="true">${c.linkedin}</span></div>`:''}
+    ${expStr?`<div class="contact-item"><span class="contact-key" contenteditable="true">Expectativa salarial</span><span class="contact-val" contenteditable="true">${expStr}</span></div>`:''}
+    ${c.ubicacion?`<div class="contact-item"><span class="contact-key" contenteditable="true">Ubicación</span><span class="contact-val" contenteditable="true">${c.ubicacion}</span></div>`:''}
+  </div>
 </div>
 
 <div class="footer">
-  <span class="footer-left">KBGB Recruiting</span>
-  <span class="footer-right" contenteditable="true">${b.cliente||''} · ${b.puesto||''}</span>
+  <span class="footer-brand" contenteditable="true">KBGB Recruiting</span>
+  <span class="footer-ref" contenteditable="true">${b.puesto||''} · ${b.cliente||''}</span>
 </div>
 </body></html>`;
   const win=window.open('','_blank');
