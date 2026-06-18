@@ -2398,94 +2398,129 @@ function descargarNotasCandidato(id) {
   const c=App.data.candidatos.find(x=>x.id===id);
   if(!c) return;
   const b=App.data.busquedas.find(x=>x.id===c.busqueda_id)||{};
-  const mustHaves=tryJSON(b.must_haves,[]);
+  const allItems=[
+    ...tryJSON(b.must_haves,[]),
+    ...tryJSON(b.nice_to_haves,[]),
+    ...tryJSON(b.red_flags,[])
+  ];
   const sc=tryJSON(c.scorecard,{});
+  const confirmados=allItems.filter(mh=>sc[mh]==='si');
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${c.nombre} — ${b.puesto||''}</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111;padding:48px;max-width:720px;margin:0 auto}
 .header{border-bottom:3px solid #111;padding-bottom:20px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-start}
-.name{font-size:26px;font-weight:800;margin-bottom:3px}.sub{color:#666;font-size:14px}.badge{display:inline-block;background:#f3f4f6;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600;margin-top:8px;border:1px solid #e5e7eb}
+.name{font-size:26px;font-weight:800;margin-bottom:3px}.sub{color:#666;font-size:14px}
 .logo{font-size:13px;font-weight:700;color:#111;text-align:right}.logo span{display:block;font-weight:400;color:#888;font-size:11px;margin-top:2px}
 .sec-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#9ca3af;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f3f4f6}
-.section{margin-bottom:24px}
-.mh-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f9fafb;font-size:13px}
-.si{color:#15803d;font-weight:600}.no{color:#b91c1c;font-weight:600}.quizas{color:#b45309;font-weight:600}
-.notas-box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px;white-space:pre-wrap;font-size:14px;line-height:1.8;color:#444;min-height:100px}
-.contact{font-size:13px;color:#555;line-height:1.8}
+.section{margin-bottom:28px}
+.punto{padding:7px 0;border-bottom:1px solid #f3f4f6;font-size:13px;color:#333;display:flex;align-items:center;gap:8px}
+.punto:before{content:'✓';color:#16a34a;font-weight:700;flex-shrink:0}
+.notas-box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px;white-space:pre-wrap;font-size:14px;line-height:1.8;color:#444;min-height:80px}
+.contact{font-size:13px;color:#555;line-height:2}
 .footer{margin-top:40px;padding-top:14px;border-top:1px solid #e5e7eb;color:#bbb;font-size:11px;display:flex;justify-content:space-between}
-@media print{body{padding:24px}}</style></head><body>
+[contenteditable]{outline:none;border-radius:4px}
+[contenteditable]:hover{background:#fffbeb}
+[contenteditable]:focus{background:#fffbeb;box-shadow:0 0 0 2px #fbbf24}
+.edit-hint{font-size:10px;color:#d1d5db;text-align:right;margin-bottom:20px}
+.print-btn{position:fixed;top:20px;right:20px;background:#111;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;z-index:99}
+@media print{.print-btn,.edit-hint{display:none}body{padding:24px}[contenteditable]:hover,[contenteditable]:focus{background:none;box-shadow:none}}</style>
+</head><body>
+<button class="print-btn" onclick="window.print()">Imprimir / Guardar PDF</button>
+<p class="edit-hint">✏️ Podés hacer click en cualquier texto para editarlo antes de imprimir</p>
 <div class="header">
-  <div><div class="name">${c.nombre}</div><div class="sub">${b.puesto||''} · ${b.cliente||''}</div><div class="badge">${c.etapa||''}</div></div>
+  <div><div class="name" contenteditable="true">${c.nombre}</div><div class="sub" contenteditable="true">${b.puesto||''} · ${b.cliente||''}</div></div>
   <div class="logo">AGB Recruiting<span>${new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'})}</span></div>
 </div>
-${mustHaves.length?`<div class="section"><div class="sec-title">Evaluación de requisitos</div>
-${mustHaves.map(mh=>{const v=sc[mh];const lbl=v==='si'?`<span class="si">✓ Sí</span>`:v==='no'?`<span class="no">✗ No</span>`:v==='quizas'?`<span class="quizas">? A confirmar</span>`:`<span style="color:#ccc">—</span>`;return`<div class="mh-row"><span>${mh}</span>${lbl}</div>`;}).join('')}</div>`:''}
-${c.notas?`<div class="section"><div class="sec-title">Comentarios</div><div class="notas-box">${c.notas}</div></div>`:''}
+${confirmados.length?`<div class="section"><div class="sec-title">Perfil del candidato</div>
+${confirmados.map(mh=>`<div class="punto" contenteditable="true">${mh}</div>`).join('')}</div>`:''}
+${c.notas?`<div class="section"><div class="sec-title">Comentarios</div><div class="notas-box" contenteditable="true">${c.notas}</div></div>`:''}
 <div class="section"><div class="sec-title">Datos de contacto</div><div class="contact">
-${c.contacto_email?`<div>Email: <strong>${c.contacto_email}</strong></div>`:''}
-${c.contacto_telefono?`<div>Teléfono: <strong>${c.contacto_telefono}</strong></div>`:''}
-${c.linkedin?`<div>LinkedIn: <strong>${c.linkedin}</strong></div>`:''}
-${c.expectativa_salarial?`<div>Expectativa salarial: <strong>${c.expectativa_salarial}</strong></div>`:''}
+${c.contacto_email?`<div>Email: <strong contenteditable="true">${c.contacto_email}</strong></div>`:''}
+${c.contacto_telefono?`<div>Teléfono: <strong contenteditable="true">${c.contacto_telefono}</strong></div>`:''}
+${c.linkedin?`<div>LinkedIn: <strong contenteditable="true">${c.linkedin}</strong></div>`:''}
+${c.expectativa_salarial?`<div>Expectativa salarial: <strong contenteditable="true">${c.expectativa_salarial}</strong></div>`:''}
 </div></div>
-<div class="footer"><span>Confidencial — AGB Recruiting</span><span>${b.cliente||''} · ${b.puesto||''}</span></div>
+<div class="footer"><span>Confidencial — AGB Recruiting</span><span contenteditable="true">${b.cliente||''} · ${b.puesto||''}</span></div>
 </body></html>`;
   const win=window.open('','_blank');
   win.document.write(html);
   win.document.close();
-  setTimeout(()=>win.print(),600);
 }
 
-const TEMPLATES_POR_ETAPA = {
+const TEMPLATES_BASE = {
   'Interesado a contactar': {
-    titulo: 'Primer contacto — WhatsApp / LinkedIn',
-    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Te escribo desde AGB Recruiting. Estoy trabajando en una búsqueda de ${b.puesto||'un rol'} para ${b.cliente||'una empresa'} que creo que te puede interesar. ¿Tenés unos minutos para que te cuente un poco más?`
+    titulo: 'WhatsApp — Primer contacto (vienen de LinkedIn)',
+    mensaje: (c,b,u) => `Hola ${c.nombre?.split(' ')[0]}! Soy ${u||'yo'}, hablamos por LinkedIn por una búsqueda de ${b.puesto||'un rol'} en ${b.cliente||'una empresa'}. ¿Tenés unos minutos para que te llame y te cuente más del rol?`
   },
   'Enviado al cliente': {
-    titulo: 'Aviso de presentación al candidato',
-    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Quería avisarte que presenté tu perfil al equipo de ${b.cliente||'la empresa'} para el rol de ${b.puesto||'la posición'}. Están revisando los perfiles y me confirman en los próximos días. Cualquier novedad te aviso! 🙌`
+    titulo: 'Aviso al candidato — CV presentado',
+    mensaje: (c,b,u) => `Hola ${c.nombre?.split(' ')[0]}! Te cuento que presenté tu perfil al equipo de ${b.cliente||'la empresa'} para el rol de ${b.puesto||'la posición'}. Están revisando los perfiles esta semana, cualquier novedad te aviso! 🙌`
   },
   'Presentado': {
     titulo: 'Confirmación de interés del cliente',
-    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Buenas noticias — ${b.cliente||'el cliente'} revisó tu perfil y tiene interés en conocerte para el rol de ${b.puesto||'la posición'}. ¿Cómo tenés la agenda esta semana para coordinar una entrevista?`
+    mensaje: (c,b,u) => `Hola ${c.nombre?.split(' ')[0]}! Buenas noticias — ${b.cliente||'el cliente'} revisó tu perfil y quiere conocerte para el rol de ${b.puesto||'la posición'}. ¿Cómo tenés la agenda esta semana para coordinar?`
   },
   '1ra entrevista cliente': {
-    titulo: 'Confirmación de entrevista',
-    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Te confirmo la entrevista con ${b.cliente||'el equipo'} para el rol de ${b.puesto||'la posición'}. Cualquier duda sobre la empresa o el proceso, escribime. ¡Mucha suerte! 💪`
+    titulo: 'Prep antes de la entrevista',
+    mensaje: (c,b,u) => `Hola ${c.nombre?.split(' ')[0]}! Te confirmo la entrevista con ${b.cliente||'el equipo'} para el rol de ${b.puesto||'la posición'}. Cualquier duda sobre el proceso o la empresa escribime, estoy para ayudarte. Mucha suerte! 💪`
   },
   '2da entrevista cliente': {
-    titulo: 'Prep para segunda entrevista',
-    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Avanzaste a una segunda instancia con ${b.cliente||'el equipo'} — felicitaciones! Esta etapa suele ser más técnica/profunda. ¿Querés que te pase algo de contexto antes de la entrevista?`
+    titulo: 'Avance a segunda instancia',
+    mensaje: (c,b,u) => `Hola ${c.nombre?.split(' ')[0]}! Avanzaste a una segunda instancia con ${b.cliente||'el equipo'} — muy bien! Esta etapa suele ser más profunda. ¿Querés que te cuente algo más de contexto antes?`
   },
   'Oferta': {
     titulo: 'Comunicación de oferta',
-    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Tengo una novedad muy buena — ${b.cliente||'la empresa'} quiere hacerte una oferta para el rol de ${b.puesto||'la posición'}. ¿Podemos hablar hoy o mañana para contarte los detalles?`
+    mensaje: (c,b,u) => `Hola ${c.nombre?.split(' ')[0]}! Tengo una buena noticia — ${b.cliente||'la empresa'} quiere hacerte una oferta para el rol de ${b.puesto||'la posición'}. ¿Podemos hablar hoy o mañana para contarte los detalles?`
   },
   'Descartado': {
-    titulo: 'Feedback de descarte',
-    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}, gracias por el tiempo y la buena predisposición durante el proceso. En esta oportunidad ${b.cliente||'el cliente'} decidió avanzar con otro perfil, pero quedé muy conforme con tu perfil y te voy a tener en cuenta para próximas búsquedas. Saludos!`
+    titulo: 'Feedback al candidato',
+    mensaje: (c,b,u) => `Hola ${c.nombre?.split(' ')[0]}, gracias por el tiempo y la buena onda durante el proceso. Esta vez el cliente decidió avanzar con otro perfil, pero me quedé con muy buena impresión tuya y te voy a tener en mente para próximas búsquedas. Saludos!`
   }
 };
+
+function getTemplateMensaje(etapa, c, b) {
+  const u = App.user?.nombre || '';
+  const tmpl = TEMPLATES_BASE[etapa] || TEMPLATES_BASE['Interesado a contactar'];
+  const lsKey = 'tmpl_' + etapa;
+  const saved = localStorage.getItem(lsKey);
+  if (saved) return saved.replace(/\{nombre\}/g, c.nombre?.split(' ')[0]||'').replace(/\{puesto\}/g, b.puesto||'').replace(/\{cliente\}/g, b.cliente||'').replace(/\{recruiter\}/g, u);
+  return tmpl.mensaje(c, b, u);
+}
+
+function saveTemplateMensaje(etapa, texto, c, b) {
+  const u = App.user?.nombre || '';
+  const nombre = c.nombre?.split(' ')[0] || '';
+  const generico = texto
+    .replace(new RegExp(nombre, 'g'), '{nombre}')
+    .replace(new RegExp(b.puesto||'XXXXX', 'g'), '{puesto}')
+    .replace(new RegExp(b.cliente||'XXXXX', 'g'), '{cliente}')
+    .replace(new RegExp(u||'XXXXX', 'g'), '{recruiter}');
+  localStorage.setItem('tmpl_' + etapa, generico);
+}
 
 function modalTemplateMensaje(id) {
   const c=App.data.candidatos.find(x=>x.id===id);
   if(!c) return '<div class="p-6">No encontrado</div>';
   const b=App.data.busquedas.find(x=>x.id===c.busqueda_id)||{};
-  const tmpl=TEMPLATES_POR_ETAPA[c.etapa]||TEMPLATES_POR_ETAPA['Interesado a contactar'];
-  const msg=tmpl.mensaje(c,b);
+  const etapa=c.etapa||'Interesado a contactar';
+  const tmpl=TEMPLATES_BASE[etapa]||TEMPLATES_BASE['Interesado a contactar'];
+  const msg=getTemplateMensaje(etapa,c,b);
   const tel=String(c.contacto_telefono||'').replace(/\D/g,'');
   return `<div class="p-6">
     ${modalHeader('📨 Template de mensaje')}
-    <p class="text-xs text-gray-500 mb-1">Etapa actual: <span class="font-semibold text-gray-700">${c.etapa||'—'}</span></p>
-    <p class="text-xs font-semibold text-gray-700 mb-3">${tmpl.titulo}</p>
-    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-      <p id="templateMsgText" class="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">${msg}</p>
+    <p class="text-xs text-gray-500 mb-1">Etapa: <span class="font-semibold text-gray-700">${etapa}</span></p>
+    <p class="text-xs font-semibold text-gray-700 mb-2">${tmpl.titulo}</p>
+    <textarea id="templateTextarea" rows="5" class="w-full text-sm text-gray-800 leading-relaxed border border-gray-200 rounded-xl p-3 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900 mb-3">${msg}</textarea>
+    <div class="flex gap-2 mb-4">
+      <button onclick="saveTemplateMensaje('${etapa}',document.getElementById('templateTextarea').value,App.data.candidatos.find(x=>x.id==='${id}'),App.data.busquedas.find(x=>x.id==='${c.busqueda_id}')||{});showToast('Template guardado ✓')" class="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition">💾 Guardar template</button>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('templateTextarea').value);showToast('Copiado ✓')" class="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition">Copiar</button>
+      ${tel?`<a href="javascript:void(0)" onclick="window.open('https://wa.me/${tel}?text='+encodeURIComponent(document.getElementById('templateTextarea').value),'_blank')" class="flex-1 py-2.5 bg-green-500 text-white rounded-xl text-sm font-semibold hover:bg-green-600 transition text-center">💬 WhatsApp</a>`:''}
     </div>
-    <div class="flex gap-2">
-      <button onclick="navigator.clipboard.writeText(document.getElementById('templateMsgText').textContent);showToast('Copiado ✓')" class="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition">Copiar texto</button>
-      ${tel?`<a href="https://wa.me/${tel}?text=${encodeURIComponent(msg)}" target="_blank" class="flex-1 py-2.5 bg-green-500 text-white rounded-xl text-sm font-semibold hover:bg-green-600 transition text-center">💬 Abrir en WhatsApp</a>`:''}
-    </div>
-    <div class="mt-3 grid grid-cols-2 gap-2">
-      ${Object.entries(TEMPLATES_POR_ETAPA).map(([etapa,t])=>`
-      <button onclick="document.getElementById('templateMsgText').textContent=${JSON.stringify(t.mensaje(c,b))}" class="text-xs py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition text-left">${etapa}</button>`).join('')}
+    <div class="border-t border-gray-100 pt-3">
+      <p class="text-xs text-gray-400 mb-2">Otros templates</p>
+      <div class="grid grid-cols-2 gap-1.5">
+        ${Object.entries(TEMPLATES_BASE).map(([et,t])=>`
+        <button onclick="document.getElementById('templateTextarea').value=getTemplateMensaje('${et}',App.data.candidatos.find(x=>x.id==='${id}'),App.data.busquedas.find(x=>x.id==='${c.busqueda_id}')||{})" class="text-xs py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition text-left truncate">${et}</button>`).join('')}
+      </div>
     </div>
   </div>`;
 }
