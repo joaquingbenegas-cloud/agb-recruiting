@@ -610,7 +610,7 @@ function renderKanbanCol(etapa, candidatos, bid, busqueda, todas) {
           ${todas?`<p class="text-xs text-indigo-500 font-medium mb-1 truncate">${b.cliente||''} · ${b.puesto||''}</p>`:''}
           <p class="text-sm font-semibold text-gray-900 leading-tight">${c.nombre}</p>
           ${c.contacto_email?`<p class="text-xs text-gray-400 truncate">${c.contacto_email}</p>`:''}
-          <p class="text-xs text-gray-300 mt-1">${fmtDate(c.fecha_etapa_actual)}</p>
+          ${(()=>{const dias=c.fecha_etapa_actual?Math.floor((Date.now()-new Date(c.fecha_etapa_actual))/(1000*60*60*24)):null;return dias!==null&&dias>5&&c.etapa!=='Descartado'&&c.etapa!=='Contratado'?`<p class="text-xs text-orange-500 font-medium mt-1">⚠ ${dias}d sin movimiento</p>`:`<p class="text-xs text-gray-300 mt-1">${fmtDate(c.fecha_etapa_actual)}</p>`;})()}
           ${c.cv_score?`<div class="flex items-center gap-1.5 mt-1.5">
             <span class="text-xs font-bold px-2 py-0.5 rounded-full ${Number(c.cv_score)>=7?'bg-green-100 text-green-700':Number(c.cv_score)>=5?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-600'}">
               IA ${c.cv_score}/10
@@ -633,9 +633,14 @@ async function dropCandidato(e,etapa,bid) {
   _dragId=null; _dragBid=null;
   const c=App.data.candidatos.find(x=>x.id===dragId);
   const prevEtapa=c?.etapa;
-  if(c){c.etapa=etapa;c.fecha_etapa_actual=new Date().toISOString().slice(0,10);}
+  const hoy=new Date().toISOString().slice(0,10);
+  if(c){
+    c.etapa=etapa;c.fecha_etapa_actual=hoy;
+    const hist=tryJSON(c.historial_etapas,[]); hist.push({etapa,fecha:hoy});
+    c.historial_etapas=JSON.stringify(hist);
+  }
   render();
-  const r=await apiPost({action:'mover_candidato',data:{candidato_id:dragId,busqueda_id:dragBid||bid,nueva_etapa:etapa}});
+  const r=await apiPost({action:'mover_candidato',data:{candidato_id:dragId,busqueda_id:dragBid||bid,nueva_etapa:etapa,historial_etapas:c?.historial_etapas||''}});
   if(r.status!=='ok'){
     if(c)c.etapa=prevEtapa; render(); showToast(r.message||'Error','error');
   } else if(etapa==='Contratado') {
@@ -896,6 +901,7 @@ function renderModal() {
     else if(type==='sourcing_ia') content=modalSourcingIA(payload);
     else if(type==='resumen_pipeline') content=modalResumenPipeline(payload);
     else if(type==='ficha_entrevista') content=modalFichaEntrevista(payload);
+    else if(type==='template_mensaje') content=modalTemplateMensaje(payload);
   } catch(err) {
     content=`<div class="p-6"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-red-600">Error al abrir</h3><button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">×</button></div><p class="text-sm text-gray-600 bg-red-50 rounded-lg p-3">${err.message}</p></div>`;
   }
@@ -1495,10 +1501,27 @@ function modalVerCandidato(id) {
       <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
         <div class="flex items-center justify-between mb-2">
           <p class="text-xs font-semibold text-amber-800">📝 Notas de entrevista</p>
-          <button onclick="guardarNotasCandidato('${id}')" class="text-xs bg-amber-700 text-white px-2.5 py-1 rounded-lg hover:bg-amber-800 transition font-medium">Guardar</button>
+          <div class="flex gap-1.5">
+            <button onclick="descargarNotasCandidato('${id}')" class="text-xs bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg hover:bg-amber-200 transition font-medium">⬇ PDF</button>
+            <button onclick="guardarNotasCandidato('${id}')" class="text-xs bg-amber-700 text-white px-2.5 py-1 rounded-lg hover:bg-amber-800 transition font-medium">Guardar</button>
+          </div>
         </div>
         <textarea id="notasCandidato_${id}" rows="4" class="w-full text-sm text-gray-700 bg-transparent border-none outline-none resize-none placeholder-amber-300" placeholder="Anotá lo que salió de la llamada, red flags, impresiones...">${c.notas||''}</textarea>
       </div>
+      ${(()=>{const h=tryJSON(c.historial_etapas,[]);return h.length?`
+      <div class="border border-gray-100 rounded-xl overflow-hidden">
+        <div class="bg-gray-50 px-4 py-2 border-b border-gray-100"><p class="text-xs font-semibold text-gray-700">🕐 Historial de etapas</p></div>
+        <div class="px-4 py-3 space-y-2">
+          ${h.slice().reverse().map((e,i)=>`
+          <div class="flex items-start gap-3">
+            <div class="flex flex-col items-center"><div class="w-2 h-2 rounded-full mt-1.5 ${i===0?'bg-gray-900':'bg-gray-300'}"></div>${i<h.length-1?'<div class="w-px flex-1 bg-gray-200 my-1"></div>':''}</div>
+            <div class="pb-2"><p class="text-xs font-medium text-gray-800">${e.etapa}</p><p class="text-xs text-gray-400">${e.fecha?new Date(e.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}):''}</p></div>
+          </div>`).join('')}
+        </div>
+      </div>`:''})()}
+    </div>
+    <div class="px-6 pb-2">
+      <button onclick="openModal('template_mensaje','${id}')" class="w-full py-2.5 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700 transition font-medium">📨 Ver template de mensaje para esta etapa</button>
     </div>
     ${scorecardHtml}
   </div>`;
@@ -2359,6 +2382,115 @@ async function marcarCobrado(bid) {
     showToast('Cobro registrado ✓');
     render();
   } else showToast(r.message||'Error','error');
+}
+
+function descargarNotasCandidato(id) {
+  const c=App.data.candidatos.find(x=>x.id===id);
+  if(!c) return;
+  const b=App.data.busquedas.find(x=>x.id===c.busqueda_id)||{};
+  const mustHaves=tryJSON(b.must_haves,[]);
+  const sc=tryJSON(c.scorecard,{});
+  const scoreColor=Number(c.cv_score)>=7?'#16a34a':Number(c.cv_score)>=5?'#ca8a04':'#dc2626';
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Notas — ${c.nombre}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111;padding:48px;max-width:720px;margin:0 auto}
+.header{border-bottom:3px solid #111;padding-bottom:20px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-start}
+.name{font-size:26px;font-weight:800;margin-bottom:3px}.sub{color:#666;font-size:14px}.badge{display:inline-block;background:#f3f4f6;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600;margin-top:8px;border:1px solid #e5e7eb}
+.logo{font-size:13px;font-weight:700;color:#111;text-align:right}.logo span{display:block;font-weight:400;color:#888;font-size:11px;margin-top:2px}
+.sec-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#9ca3af;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f3f4f6}
+.section{margin-bottom:24px}
+.score-box{background:#f9fafb;border-radius:12px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border:1px solid #e5e7eb}
+.score-num{font-size:40px;font-weight:900;color:${scoreColor}}
+.pros-contras{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+.pro{color:#15803d;font-size:13px;line-height:1.7}.contra{color:#b91c1c;font-size:13px;line-height:1.7}
+.list-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.mh-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f9fafb;font-size:13px}
+.si{color:#15803d;font-weight:600}.no{color:#b91c1c;font-weight:600}.quizas{color:#b45309;font-weight:600}
+.notas-box{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:20px;white-space:pre-wrap;font-size:14px;line-height:1.8;color:#444;min-height:100px}
+.contact{font-size:13px;color:#555;line-height:1.8}
+.footer{margin-top:40px;padding-top:14px;border-top:1px solid #e5e7eb;color:#bbb;font-size:11px;display:flex;justify-content:space-between}
+@media print{body{padding:24px}}</style></head><body>
+<div class="header">
+  <div><div class="name">${c.nombre}</div><div class="sub">${b.puesto||''} · ${b.cliente||''}</div><div class="badge">${c.etapa||''}</div></div>
+  <div class="logo">AGB Recruiting<span>${new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'})}</span></div>
+</div>
+${c.cv_score?`<div class="section"><div class="sec-title">Score IA</div>
+<div class="score-box"><div><div style="font-size:14px;font-weight:600;margin-bottom:4px">Evaluación del perfil</div>${c.cv_score_justificacion?`<div style="font-size:12px;color:#666;max-width:480px">${c.cv_score_justificacion}</div>`:''}</div>
+<div class="score-num">${c.cv_score}/10</div></div>
+${(c.cv_score_pros||c.cv_score_contras)?`<div class="pros-contras">
+${c.cv_score_pros?`<div><div class="list-lbl" style="color:#15803d">✓ A favor</div>${toArr(c.cv_score_pros).map(p=>`<div class="pro">• ${p}</div>`).join('')}</div>`:''}
+${c.cv_score_contras?`<div><div class="list-lbl" style="color:#b91c1c">✗ En contra</div>${toArr(c.cv_score_contras).map(p=>`<div class="contra">• ${p}</div>`).join('')}</div>`:''}
+</div>`:''}</div>`:''}
+${mustHaves.length?`<div class="section"><div class="sec-title">Scorecard — Must-haves</div>
+${mustHaves.map(mh=>{const v=sc[mh];const lbl=v==='si'?`<span class="si">✓ Sí</span>`:v==='no'?`<span class="no">✗ No</span>`:v==='quizas'?`<span class="quizas">? Quizás</span>`:`<span style="color:#ddd">—</span>`;return`<div class="mh-row"><span>${mh}</span>${lbl}</div>`;}).join('')}</div>`:''}
+<div class="section"><div class="sec-title">📝 Notas de entrevista</div><div class="notas-box">${c.notas||'(sin notas)'}</div></div>
+${c.contacto_email||c.contacto_telefono||c.expectativa_salarial?`<div class="section"><div class="sec-title">Datos de contacto</div><div class="contact">
+${c.contacto_email?`<div>Email: <strong>${c.contacto_email}</strong></div>`:''}
+${c.contacto_telefono?`<div>Teléfono: <strong>${c.contacto_telefono}</strong></div>`:''}
+${c.linkedin?`<div>LinkedIn: ${c.linkedin}</div>`:''}
+${c.expectativa_salarial?`<div>Expectativa salarial: <strong>${c.expectativa_salarial}</strong></div>`:''}
+</div></div>`:''}
+<div class="footer"><span>Confidencial — AGB Recruiting</span><span>${b.cliente||''} · ${b.puesto||''}</span></div>
+</body></html>`;
+  const win=window.open('','_blank');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(()=>win.print(),600);
+}
+
+const TEMPLATES_POR_ETAPA = {
+  'Interesado a contactar': {
+    titulo: 'Primer contacto — WhatsApp / LinkedIn',
+    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Te escribo desde AGB Recruiting. Estoy trabajando en una búsqueda de ${b.puesto||'un rol'} para ${b.cliente||'una empresa'} que creo que te puede interesar. ¿Tenés unos minutos para que te cuente un poco más?`
+  },
+  'Enviado al cliente': {
+    titulo: 'Aviso de presentación al candidato',
+    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Quería avisarte que presenté tu perfil al equipo de ${b.cliente||'la empresa'} para el rol de ${b.puesto||'la posición'}. Están revisando los perfiles y me confirman en los próximos días. Cualquier novedad te aviso! 🙌`
+  },
+  'Presentado': {
+    titulo: 'Confirmación de interés del cliente',
+    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Buenas noticias — ${b.cliente||'el cliente'} revisó tu perfil y tiene interés en conocerte para el rol de ${b.puesto||'la posición'}. ¿Cómo tenés la agenda esta semana para coordinar una entrevista?`
+  },
+  '1ra entrevista cliente': {
+    titulo: 'Confirmación de entrevista',
+    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Te confirmo la entrevista con ${b.cliente||'el equipo'} para el rol de ${b.puesto||'la posición'}. Cualquier duda sobre la empresa o el proceso, escribime. ¡Mucha suerte! 💪`
+  },
+  '2da entrevista cliente': {
+    titulo: 'Prep para segunda entrevista',
+    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Avanzaste a una segunda instancia con ${b.cliente||'el equipo'} — felicitaciones! Esta etapa suele ser más técnica/profunda. ¿Querés que te pase algo de contexto antes de la entrevista?`
+  },
+  'Oferta': {
+    titulo: 'Comunicación de oferta',
+    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}! Tengo una novedad muy buena — ${b.cliente||'la empresa'} quiere hacerte una oferta para el rol de ${b.puesto||'la posición'}. ¿Podemos hablar hoy o mañana para contarte los detalles?`
+  },
+  'Descartado': {
+    titulo: 'Feedback de descarte',
+    mensaje: (c,b) => `Hola ${c.nombre?.split(' ')[0]}, gracias por el tiempo y la buena predisposición durante el proceso. En esta oportunidad ${b.cliente||'el cliente'} decidió avanzar con otro perfil, pero quedé muy conforme con tu perfil y te voy a tener en cuenta para próximas búsquedas. Saludos!`
+  }
+};
+
+function modalTemplateMensaje(id) {
+  const c=App.data.candidatos.find(x=>x.id===id);
+  if(!c) return '<div class="p-6">No encontrado</div>';
+  const b=App.data.busquedas.find(x=>x.id===c.busqueda_id)||{};
+  const tmpl=TEMPLATES_POR_ETAPA[c.etapa]||TEMPLATES_POR_ETAPA['Interesado a contactar'];
+  const msg=tmpl.mensaje(c,b);
+  const tel=String(c.contacto_telefono||'').replace(/\D/g,'');
+  return `<div class="p-6">
+    ${modalHeader('📨 Template de mensaje')}
+    <p class="text-xs text-gray-500 mb-1">Etapa actual: <span class="font-semibold text-gray-700">${c.etapa||'—'}</span></p>
+    <p class="text-xs font-semibold text-gray-700 mb-3">${tmpl.titulo}</p>
+    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+      <p id="templateMsgText" class="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">${msg}</p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="navigator.clipboard.writeText(document.getElementById('templateMsgText').textContent);showToast('Copiado ✓')" class="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition">Copiar texto</button>
+      ${tel?`<a href="https://wa.me/${tel}?text=${encodeURIComponent(msg)}" target="_blank" class="flex-1 py-2.5 bg-green-500 text-white rounded-xl text-sm font-semibold hover:bg-green-600 transition text-center">💬 Abrir en WhatsApp</a>`:''}
+    </div>
+    <div class="mt-3 grid grid-cols-2 gap-2">
+      ${Object.entries(TEMPLATES_POR_ETAPA).map(([etapa,t])=>`
+      <button onclick="document.getElementById('templateMsgText').textContent=${JSON.stringify(t.mensaje(c,b))}" class="text-xs py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition text-left">${etapa}</button>`).join('')}
+    </div>
+  </div>`;
 }
 
 async function guardarNotasCandidato(id) {
