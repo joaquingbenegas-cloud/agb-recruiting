@@ -190,12 +190,16 @@ const LANDING_COPY = {
     ],
     form_title: 'Contanos sobre tu búsqueda',
     form_sub: 'Completá el formulario y te contacto en menos de 24 horas hábiles.',
-    f_empresa: 'Empresa *', f_nombre: 'Tu nombre *', f_email: 'Email *', f_tel: 'Teléfono',
-    f_puesto: 'Puesto a cubrir *', f_seniority: 'Seniority', f_sel: 'Seleccioná',
+    f_empresa: 'Empresa', f_nombre: 'Tu nombre *', f_email: 'Email', f_wa: 'WhatsApp *', f_wa_ph: 'Ej: +1 305 123 4567',
+    f_puesto: 'Puesto a cubrir', f_seniority: 'Seniority', f_sel: 'Seleccioná',
     f_moneda: 'Moneda', f_min: 'Banda mínima', f_max: 'Banda máxima',
     f_modalidad: 'Modalidad', f_mod: ['Presencial','Híbrido','Remoto'],
     f_detalle: 'Lo más importante del rol', f_detalle_ph: 'Skills clave, cultura, deal-breakers, etc.',
-    f_jd: 'Link a la job description', f_submit: 'Enviar consulta',
+    f_jd_label: '¿Tenés una job description?', f_jd_btn: '📎 Subir JD (PDF o Word)',
+    f_jd_hint: 'Opcional',
+    f_jd_processing: '✨ Analizando con IA...',
+    f_jd_done: '✅ Campos completados con IA',
+    f_submit: 'Enviar consulta',
     footer: '© 2025 Agustín González Benegas',
     contact: 'Contacto',
   },
@@ -218,12 +222,16 @@ const LANDING_COPY = {
     ],
     form_title: 'Tell us about your search',
     form_sub: "Fill out the form and I'll get back to you within 24 business hours.",
-    f_empresa: 'Company *', f_nombre: 'Your name *', f_email: 'Email *', f_tel: 'Phone',
-    f_puesto: 'Role to fill *', f_seniority: 'Seniority', f_sel: 'Select',
+    f_empresa: 'Company', f_nombre: 'Your name *', f_email: 'Email', f_wa: 'WhatsApp *', f_wa_ph: 'E.g. +1 305 123 4567',
+    f_puesto: 'Role to fill', f_seniority: 'Seniority', f_sel: 'Select',
     f_moneda: 'Currency', f_min: 'Min. salary', f_max: 'Max. salary',
     f_modalidad: 'Work arrangement', f_mod: ['On-site','Hybrid','Remote'],
     f_detalle: 'Most important about the role', f_detalle_ph: 'Key skills, culture, deal-breakers, etc.',
-    f_jd: 'Link to job description', f_submit: 'Send inquiry',
+    f_jd_label: 'Do you have a job description?', f_jd_btn: '📎 Upload JD (PDF or Word)',
+    f_jd_hint: 'Optional',
+    f_jd_processing: '✨ Analyzing with AI...',
+    f_jd_done: '✅ Fields filled by AI',
+    f_submit: 'Send inquiry',
     footer: '© 2025 Agustín González Benegas',
     contact: 'Contact',
   }
@@ -296,12 +304,24 @@ function renderLanding() {
         <h2 class="text-2xl font-bold mb-2 text-gray-900">${t.form_title}</h2>
         <p class="text-gray-500 mb-8 text-sm">${t.form_sub}</p>
         <form id="leadForm" class="space-y-5" onsubmit="submitLead(event)">
+          <!-- JD upload — at the top so AI can pre-fill fields below -->
+          <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+            <p class="text-sm font-medium text-gray-700 mb-1">${t.f_jd_label}</p>
+            <p class="text-xs text-gray-400 mb-3">${t.f_jd_hint}</p>
+            <label class="cursor-pointer inline-flex items-center gap-2 text-sm font-medium text-indigo-700 bg-white border border-indigo-200 px-4 py-2 rounded-lg hover:bg-indigo-50 transition">
+              ${t.f_jd_btn}
+              <input type="file" accept=".pdf,.doc,.docx" class="hidden" onchange="leadUploadJD(this)">
+            </label>
+            <span id="leadJdStatus" class="ml-3 text-xs text-gray-500"></span>
+            <input type="hidden" name="jd_texto" id="leadJdTexto">
+          </div>
+
           <div class="grid md:grid-cols-2 gap-5">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_empresa}</label><input name="empresa" required class="${inputCls()}"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_nombre}</label><input name="contacto_nombre" required class="${inputCls()}"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_email}</label><input name="contacto_email" type="email" required class="${inputCls()}"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_tel}</label><input name="contacto_telefono" class="${inputCls()}"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_puesto}</label><input name="puesto" required class="${inputCls()}"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_wa}</label><input name="contacto_whatsapp" required placeholder="${t.f_wa_ph}" class="${inputCls()}"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_empresa}</label><input name="empresa" class="${inputCls()}"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_email}</label><input name="contacto_email" type="email" class="${inputCls()}"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_puesto}</label><input name="puesto" class="${inputCls()}"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_seniority}</label>
               <select name="seniority" class="${selectCls()}"><option value="">${t.f_sel}</option><option>Junior</option><option>Semi-senior</option><option>Senior</option><option>Lead</option><option>Manager</option><option>Director</option></select>
             </div>
@@ -315,7 +335,6 @@ function renderLanding() {
             <div class="flex gap-4">${t.f_mod.map(m=>`<label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="modalidad" value="${m.toLowerCase()}" class="accent-gray-900"> ${m}</label>`).join('')}</div>
           </div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_detalle}</label><textarea name="detalle_rol" rows="3" class="${inputCls()} resize-none" placeholder="${t.f_detalle_ph}"></textarea></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_jd}</label><input name="jd_link" type="url" placeholder="https://" class="${inputCls()}"></div>
           <button type="submit" id="leadSubmitBtn" class="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition text-sm">${t.f_submit}</button>
         </form>
       </div>
@@ -3372,6 +3391,58 @@ async function submitEditBusqueda(e,id) {
 // ═══════════════════════════════════════════════════════════════
 // LEAD FORM (landing)
 // ═══════════════════════════════════════════════════════════════
+async function leadUploadJD(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const t = LANDING_COPY[_landingLang];
+  const statusEl = document.getElementById('leadJdStatus');
+  const textoEl = document.getElementById('leadJdTexto');
+  statusEl.textContent = t.f_jd_processing;
+
+  try {
+    // Read file as base64
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+
+    // Extract text + parse with AI
+    const r = await apiPostPublic({ action: 'parsear_jd_publico', data: { filename: file.name, base64data: base64 } });
+    if (r.status !== 'ok') throw new Error(r.message || 'Error');
+
+    const p = r.data;
+    // Store full JD text for the lead submission
+    if (textoEl) textoEl.value = p.jd_texto || '';
+
+    // Pre-fill form fields
+    const f = document.getElementById('leadForm');
+    const set = (name, val) => { if (!val && val !== 0) return; const el = f.querySelector(`[name="${name}"]`); if (el) el.value = val; };
+    const setSelect = (name, val) => {
+      if (!val) return;
+      const el = f.querySelector(`[name="${name}"]`);
+      if (!el) return;
+      const opt = [...el.options].find(o => o.value.toLowerCase() === String(val).toLowerCase());
+      if (opt) el.value = opt.value;
+    };
+    set('empresa', p.cliente);
+    set('puesto', p.puesto);
+    set('banda_salarial_min', p.banda_salarial_min);
+    set('banda_salarial_max', p.banda_salarial_max);
+    setSelect('seniority', p.seniority);
+    setSelect('modalidad', p.modalidad);
+    setSelect('moneda', p.moneda);
+    if (p.detalle_rol) set('detalle_rol', p.detalle_rol);
+
+    statusEl.textContent = t.f_jd_done;
+    statusEl.className = 'ml-3 text-xs text-green-600 font-medium';
+  } catch(err) {
+    statusEl.textContent = '❌ Error al procesar el archivo';
+    statusEl.className = 'ml-3 text-xs text-red-500';
+  }
+}
+
 async function submitLead(e) {
   e.preventDefault();
   const btn=document.getElementById('leadSubmitBtn');
@@ -3379,10 +3450,10 @@ async function submitLead(e) {
   try {
     const fd=new FormData(e.target);
     const r=await apiPostPublic({action:'nuevo_lead',data:Object.fromEntries(fd.entries())});
-    if(r.status==='ok'){e.target.reset();showToast('¡Recibimos tu consulta! Te contactamos pronto.');}
+    if(r.status==='ok'){e.target.reset();document.getElementById('leadJdStatus').textContent='';showToast('¡Recibimos tu consulta! Te contactamos pronto.');}
     else showToast(r.message||'Error al enviar','error');
   } catch(err){showToast('Error de conexión','error');}
-  btn.disabled=false; btn.textContent='Enviar consulta';
+  btn.disabled=false; btn.textContent=LANDING_COPY[_landingLang].f_submit;
 }
 
 // ═══════════════════════════════════════════════════════════════
