@@ -1935,13 +1935,13 @@ async function handleCVFile(file, formId) {
     if(r.status!=='ok') throw new Error(r.message||'Error al procesar');
 
 
-    const {url,score,score_justificacion,score_pros,score_contras,...p}=r.data;
+    const {url,cv_score,cv_score_justificacion,cv_score_pros,cv_score_contras,...p}=r.data;
     App._parsedCV=p;
     App._cvPdfUrl=url;
-    App._cvScore={score,justificacion:score_justificacion,pros:score_pros,contras:score_contras};
+    App._cvScore={score:cv_score,justificacion:cv_score_justificacion,pros:cv_score_pros,contras:cv_score_contras};
     App.modal={...App.modal};
     render();
-    const scoreMsg=score?` · Score IA: ${score}/10`:'';
+    const scoreMsg=cv_score?` · Score IA: ${cv_score}/10`:'';
     showToast(p.nombre?`CV guardado: ${p.nombre}${scoreMsg} ✓`:'CV guardado — completá los datos que falten');
   } catch(err) {
     showToast(err.message,'error');
