@@ -3581,7 +3581,8 @@ async function submitLead(e) {
 // POSTULACIÓN PÚBLICA (apply page)
 // ═══════════════════════════════════════════════════════════════
 function copiarLinkPostulacion(bid) {
-  const url = `${window.location.origin}${window.location.pathname}?apply=${bid}`;
+  const by = App.user?.id ? `&by=${App.user.id}` : '';
+  const url = `${window.location.origin}${window.location.pathname}?apply=${bid}${by}`;
   navigator.clipboard.writeText(url).then(()=>showToast('Link de postulación copiado ✓'));
 }
 
@@ -3685,7 +3686,7 @@ async function submitPostulacion(e, bid) {
     delete d.expectativa_moneda;
 
     const r = await apiPostPublic({ action:'postular_candidato', data:{
-      ...d, busqueda_id: bid, cv_text: text, base64data: base64, filename: file.name,
+      ...d, busqueda_id: bid, cv_text: text, base64data: base64, filename: file.name, recruiter_id: App._applyBy||'',
     }});
     if (r.status!=='ok') throw new Error(r.message||'Error al enviar');
     App._applyState = 'sent';
@@ -3703,7 +3704,8 @@ async function submitPostulacion(e, bid) {
 function attachEvents() {}
 
 const _applyParam = new URLSearchParams(window.location.search).get('apply');
-if (_applyParam) initApply(_applyParam);
+const _applyByParam = new URLSearchParams(window.location.search).get('by');
+if (_applyParam) { App._applyBy = _applyByParam||''; initApply(_applyParam); }
 else render();
 </script>
 </body>
