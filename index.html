@@ -85,6 +85,7 @@ async function apiPostPublic(body) {
 function tryJSON(str, fallback) { try { return JSON.parse(str); } catch { return fallback; } }
 function toArr(str) { if (!str) return []; const p = tryJSON(str, null); if (Array.isArray(p)) return p; return String(str).split(/\n|•/).map(s=>s.trim()).filter(Boolean); }
 function fmtMoney(n, moneda='') { if (!n && n!==0) return '—'; return (moneda?moneda+' ':'')+Number(n).toLocaleString('es-AR'); }
+function fmtMoneyMulti(byCurrency) { const parts=Object.entries(byCurrency||{}).filter(([,v])=>v).map(([cur,v])=>fmtMoney(v,cur)); return parts.length?parts.join(' · '):'—'; }
 function normScore(s) { const n=Number(s); if(!n&&n!==0) return null; if(n>10) return Math.round(n/10*10)/10; if(n>0&&n<=1) return Math.round(n*10*10)/10; return n; }
 function fmtDate(s) { if(!s) return '—'; return new Date(s).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
 function badge(t,c) { return `<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ${c}">${t}</span>`; }
@@ -320,7 +321,7 @@ function renderLanding() {
 
           <div class="grid md:grid-cols-2 gap-5">
             <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_nombre}</label><input name="contacto_nombre" required class="${inputCls()}"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_wa}</label><input name="contacto_whatsapp" required placeholder="${t.f_wa_ph}" class="${inputCls()}"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_wa}</label><input name="contacto_whatsapp" type="tel" required pattern="[\d\s\+\-\(\)]{6,}" title="Ingresá un número de WhatsApp válido (mínimo 6 dígitos)" placeholder="${t.f_wa_ph}" class="${inputCls()}"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_empresa}</label><input name="empresa" class="${inputCls()}"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_email}</label><input name="contacto_email" type="email" class="${inputCls()}"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">${t.f_puesto}</label><input name="puesto" class="${inputCls()}"></div>
@@ -435,7 +436,7 @@ function renderSection() {
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════
 function renderDashboard() {
-  const busquedas=App.data.busquedas, candidatos=App.data.candidatos||[], isAdmin=App.user.rol==='admin';
+  const busquedas=App.data.busquedas, candidatos=App.data.candidatos||[], isAdmin=App.user?.rol==='admin';
   const hora=new Date().getHours();
   const greeting=hora<12?'Buenos días':hora<18?'Buenas tardes':'Buenas noches';
   const hoy=new Date().toISOString().slice(0,10);
@@ -469,8 +470,13 @@ function renderDashboard() {
   const pipelineProb=calcPipelineProb(activas,candidatos);
   const cobradoMes=(()=>{
     const mesKey=hoy.slice(0,7);
-    return cerradas.filter(b=>b.estado_cobro==='cobrado'&&String(b.fecha_cobro||'').slice(0,7)===mesKey)
-      .reduce((t,b)=>t+(Number(isAdmin?b.fee_cabeza:b.fee_recruiter)||Number(b.fee_calculado)||0),0);
+    const totals={ARS:0,USD:0};
+    cerradas.filter(b=>b.estado_cobro==='cobrado'&&String(b.fecha_cobro||'').slice(0,7)===mesKey)
+      .forEach(b=>{
+        const moneda=b.moneda==='USD'?'USD':'ARS';
+        totals[moneda]+=(Number(isAdmin?b.fee_cabeza:b.fee_recruiter)||Number(b.fee_calculado)||0);
+      });
+    return totals;
   })();
 
   // Por búsqueda: cuántos candidatos activos y en qué mejor etapa
@@ -500,8 +506,8 @@ function renderDashboard() {
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
       ${statCard('Búsquedas activas', activas.length, 'text-indigo-600')}
       ${statCard('En oferta ahora', enOferta.length, enOferta.length>0?'text-green-600':'text-gray-400')}
-      ${statCard('Cobrado este mes', fmtMoney(cobradoMes)||'—', 'text-gray-900')}
-      ${statCard('Pipeline proyectado', fmtMoney(pipelineProb)||'—', 'text-blue-600')}
+      ${statCard('Cobrado este mes', fmtMoneyMulti(cobradoMes), 'text-gray-900')}
+      ${statCard('Pipeline proyectado', fmtMoneyMulti(pipelineProb), 'text-blue-600')}
     </div>
 
     <!-- Alertas -->
@@ -589,7 +595,7 @@ function selectorEquipoHTML() {
   return `<div class="flex items-center gap-2 flex-wrap">
     <span class="text-xs text-gray-500">Vista:</span>
     <button onclick="cambiarVista(null)" class="text-xs px-3 py-1 rounded-full border ${!App.data.vistaPersona?'bg-gray-900 text-white border-gray-900':'border-gray-300 text-gray-600 hover:border-gray-500'}">Equipo</button>
-    ${(App.data.recruiters||[]).map(r=>`<button onclick="cambiarVista('${r.nombre}')" class="text-xs px-3 py-1 rounded-full border ${App.data.vistaPersona===r.nombre?'bg-gray-900 text-white border-gray-900':'border-gray-300 text-gray-600 hover:border-gray-500'}">${r.nombre}</button>`).join('')}
+    ${(App.data.recruiters||[]).map(r=>`<button onclick="cambiarVista(${escAttr(JSON.stringify(r.nombre))})" class="text-xs px-3 py-1 rounded-full border ${App.data.vistaPersona===r.nombre?'bg-gray-900 text-white border-gray-900':'border-gray-300 text-gray-600 hover:border-gray-500'}">${r.nombre}</button>`).join('')}
   </div>`;
 }
 async function cambiarVista(persona) { App.data.vistaPersona=persona; await loadSection(App.section); }
@@ -649,7 +655,7 @@ function aprobarLead(id) { openModal('nueva_busqueda',{lead:App.data.leads.find(
 // BÚSQUEDAS
 // ═══════════════════════════════════════════════════════════════
 function renderBusquedas() {
-  const isAdmin=App.user.rol==='admin', b=App.data.busquedas;
+  const isAdmin=App.user?.rol==='admin', b=App.data.busquedas;
   const grupos={activa:[],pausada:[],cerrada:[],perdida:[]};
   b.forEach(x=>(grupos[x.estado]||[]).push(x));
   return `
@@ -692,8 +698,8 @@ function renderBusquedaRow(b) {
         ${b.jd_link?`<a href="${b.jd_link}" target="_blank" class="text-xs text-indigo-600 hover:underline">JD ↗</a>`:''}
         <button onclick="copiarLinkPostulacion('${b.id}')" class="text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition">🔗 Link postulación</button>
         <button onclick="irAPipeline('${b.id}')" class="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition">Pipeline →</button>
-        ${App.user.rol==='admin'?`<button onclick="openModal('editar_busqueda','${b.id}')" class="text-xs text-gray-500 hover:text-gray-900">Editar</button>`:''}
-        ${App.user.rol==='admin'?`<button onclick="openModal('confirmar_eliminar_busqueda','${b.id}')" class="text-xs text-red-400 hover:text-red-600">Eliminar</button>`:''}
+        ${App.user?.rol==='admin'?`<button onclick="openModal('editar_busqueda','${b.id}')" class="text-xs text-gray-500 hover:text-gray-900">Editar</button>`:''}
+        ${App.user?.rol==='admin'?`<button onclick="openModal('confirmar_eliminar_busqueda','${b.id}')" class="text-xs text-red-400 hover:text-red-600">Eliminar</button>`:''}
       </div>
     </div>
   </div>`;
@@ -897,7 +903,7 @@ async function dropCandidato(e,etapa,bid) {
 // KPIs
 // ═══════════════════════════════════════════════════════════════
 function renderKpis() {
-  const k=App.data.kpis, isAdmin=App.user.rol==='admin';
+  const k=App.data.kpis, isAdmin=App.user?.rol==='admin';
   if(!k) return `<div class="p-6 text-gray-400 text-sm">Sin datos</div>`;
   return `
   <div class="p-6 max-w-3xl">
@@ -945,33 +951,39 @@ function calcFeeClient(b) {
 // Probabilidad por etapa × exclusividad
 const PROB_ETAPA = {'Contactados':0.05,'Entrevistados':0.10,'Presentados':0.18,'1ra entrevista cliente':0.40,'2da entrevista cliente':0.65,'Oferta':0.88,'Contratado':1};
 function calcPipelineProb(busquedas, candidatos) {
-  // Por cada búsqueda activa con fee, suma fee × prob_etapa × factor_exclusividad
-  let total=0;
+  // Por cada búsqueda activa con fee, suma fee × prob_etapa × factor_exclusividad, separado por moneda
+  const totals={ARS:0,USD:0};
   const excl_factor = {'exclusiva':1,'compartida':0.35};
   busquedas.filter(b=>b.estado==='activa').forEach(b=>{
     const fee=calcFeeClient(b); if(!fee) return;
+    const moneda=b.moneda==='USD'?'USD':'ARS';
     const fx=excl_factor[b.exclusividad||'exclusiva']||1;
     const cands=candidatos.filter(c=>c.busqueda_id===b.id&&c.etapa!=='Descartado');
-    if(!cands.length){ total+=fee*0.05*fx; return; }
+    if(!cands.length){ totals[moneda]+=fee*0.05*fx; return; }
     // Usar el candidato más avanzado por búsqueda
     const maxProb=Math.max(...cands.map(c=>PROB_ETAPA[c.etapa]||0.05));
-    total+=fee*maxProb*fx;
+    totals[moneda]+=fee*maxProb*fx;
   });
-  return Math.round(total);
+  totals.ARS=Math.round(totals.ARS); totals.USD=Math.round(totals.USD);
+  return totals;
 }
 
 function renderIngresos() {
   const busquedas=App.data.busquedas;
   const candidatos=App.data.candidatos||[];
-  const isAdmin=App.user.rol==='admin';
+  const isAdmin=App.user?.rol==='admin';
   const placements=busquedas.filter(b=>b.estado==='cerrada')
     .sort((a,b)=>(b.fecha_cierre||'').localeCompare(a.fecha_cierre||''));
   const activas=busquedas.filter(b=>b.estado==='activa');
 
   const feeKey=isAdmin?'fee_cabeza':'fee_recruiter';
-  const cobrado=placements.filter(b=>b.estado_cobro==='cobrado').reduce((t,b)=>t+(Number(b[feeKey])||Number(b.fee_calculado)||0),0);
-  const pendiente=placements.filter(b=>b.estado_cobro!=='cobrado').reduce((t,b)=>t+(Number(b[feeKey])||Number(b.fee_calculado)||0),0);
-  const pipelineTotal=activas.reduce((t,b)=>t+calcFeeClient(b),0);
+  const cobrado={ARS:0,USD:0}, pendiente={ARS:0,USD:0}, pipelineTotal={ARS:0,USD:0};
+  placements.forEach(b=>{
+    const moneda=b.moneda==='USD'?'USD':'ARS';
+    const val=Number(b[feeKey])||Number(b.fee_calculado)||0;
+    if(b.estado_cobro==='cobrado') cobrado[moneda]+=val; else pendiente[moneda]+=val;
+  });
+  activas.forEach(b=>{ pipelineTotal[b.moneda==='USD'?'USD':'ARS']+=calcFeeClient(b); });
   const pipelineProb=calcPipelineProb(activas,candidatos);
   const sinFees=isAdmin?placements.filter(b=>!Number(b.fee_calculado)):[];
 
@@ -984,7 +996,7 @@ function renderIngresos() {
     const maxEtapa=cands.length?cands.reduce((best,c)=>(PROB_ETAPA[c.etapa]||0)>(PROB_ETAPA[best.etapa]||0)?c:best,cands[0]):null;
     const prob=maxEtapa?PROB_ETAPA[maxEtapa.etapa]||0.05:0.05;
     return {b,fee,prob,fx,proyectado:Math.round(fee*prob*fx),cands,maxEtapa};
-  }).filter(x=>x.fee>0).sort((a,z)=>z.proyectado-a.proyectado);
+  }).sort((a,z)=>z.proyectado-a.proyectado);
 
   // Histórico mensual (últimos 6 meses)
   const ahora=new Date();
@@ -992,12 +1004,15 @@ function renderIngresos() {
     const d=new Date(ahora.getFullYear(),ahora.getMonth()-5+i,1);
     return {key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,label:d.toLocaleDateString('es-AR',{month:'short',year:'2-digit'})};
   });
-  const cobradoPorMes={};
+  const cobradoPorMesARS={}, cobradoPorMesUSD={};
   placements.filter(b=>b.estado_cobro==='cobrado'&&b.fecha_cobro).forEach(b=>{
     const k=String(b.fecha_cobro).slice(0,7);
-    cobradoPorMes[k]=(cobradoPorMes[k]||0)+(Number(b[feeKey])||Number(b.fee_calculado)||0);
+    const val=(Number(b[feeKey])||Number(b.fee_calculado)||0);
+    if(b.moneda==='USD') cobradoPorMesUSD[k]=(cobradoPorMesUSD[k]||0)+val;
+    else cobradoPorMesARS[k]=(cobradoPorMesARS[k]||0)+val;
   });
-  const maxMes=Math.max(1,...meses.map(m=>cobradoPorMes[m.key]||0));
+  const maxMesARS=Math.max(1,...meses.map(m=>cobradoPorMesARS[m.key]||0));
+  const maxMesUSD=Math.max(1,...meses.map(m=>cobradoPorMesUSD[m.key]||0));
 
   return `
   <div class="p-6 max-w-4xl space-y-6">
@@ -1008,10 +1023,10 @@ function renderIngresos() {
 
     <!-- KPIs principales -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-      ${statCard('Cobrado total',fmtMoney(cobrado),'text-green-600')}
-      ${statCard('Pendiente cobro',fmtMoney(pendiente),'text-amber-600')}
-      ${statCard('Fee bruto en pipeline',fmtMoney(pipelineTotal),'text-gray-500')}
-      ${statCard('Proyección ponderada',fmtMoney(pipelineProb),'text-indigo-600')}
+      ${statCard('Cobrado total',fmtMoneyMulti(cobrado),'text-green-600')}
+      ${statCard('Pendiente cobro',fmtMoneyMulti(pendiente),'text-amber-600')}
+      ${statCard('Fee bruto en pipeline',fmtMoneyMulti(pipelineTotal),'text-gray-500')}
+      ${statCard('Proyección ponderada',fmtMoneyMulti(pipelineProb),'text-indigo-600')}
     </div>
 
     <!-- Histórico mensual -->
@@ -1019,11 +1034,13 @@ function renderIngresos() {
       <p class="text-xs font-semibold text-gray-700 mb-4">Histórico de cobros — últimos 6 meses</p>
       <div class="flex items-end gap-2 h-28">
         ${meses.map(m=>{
-          const val=cobradoPorMes[m.key]||0;
-          const h=val?Math.max(8,Math.round((val/maxMes)*96)):4;
+          const valARS=cobradoPorMesARS[m.key]||0, valUSD=cobradoPorMesUSD[m.key]||0;
+          const ratio=Math.max(valARS/maxMesARS, valUSD/maxMesUSD);
+          const h=(valARS||valUSD)?Math.max(8,Math.round(ratio*96)):4;
           const esHoy=m.key===`${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}`;
+          const label=fmtMoneyMulti({ARS:valARS,USD:valUSD});
           return `<div class="flex-1 flex flex-col items-center gap-1">
-            ${val?`<p class="text-xs text-gray-500 font-medium" style="font-size:9px">${fmtMoney(val)}</p>`:'<p style="font-size:9px" class="text-gray-300">—</p>'}
+            <p class="text-gray-500 font-medium text-center leading-tight" style="font-size:8px">${label==='—'?'':label}</p>
             <div class="w-full rounded-t-md ${esHoy?'bg-indigo-500':'bg-gray-200'}" style="height:${h}px"></div>
             <p class="text-xs text-gray-400" style="font-size:9px">${m.label}</p>
           </div>`;
@@ -1048,21 +1065,21 @@ function renderIngresos() {
                 <span class="text-xs px-2 py-0.5 rounded-full font-medium ${b.exclusividad==='compartida'?'bg-orange-50 text-orange-700 border border-orange-200':'bg-green-50 text-green-700 border border-green-200'}">${b.exclusividad==='compartida'?'Compartida':'Exclusiva'}</span>
               </div>
               <div class="flex items-center gap-3 mt-1 flex-wrap">
-                <span class="text-xs text-gray-400">Fee: ${fmtMoney(fee,b.moneda||'')}</span>
+                ${fee>0?`<span class="text-xs text-gray-400">Fee: ${fmtMoney(fee,b.moneda||'')}</span>`:`<span class="text-xs text-amber-600 font-medium">⚠ Fee pendiente de configurar</span>`}
                 ${maxEtapa?`<span class="text-xs text-gray-400">Mejor etapa: <strong class="text-gray-600">${maxEtapa.etapa}</strong> (${Math.round(prob*100)}%)</span>`:'<span class="text-xs text-gray-400">Sin candidatos activos</span>'}
                 ${fx<1?`<span class="text-xs text-orange-500">×${fx} por compartida</span>`:''}
                 <span class="text-xs text-gray-300">${cands.length} candidato${cands.length!==1?'s':''} activo${cands.length!==1?'s':''}</span>
               </div>
             </div>
             <div class="text-right flex-shrink-0">
-              <p class="text-sm font-bold ${proyectado>0?'text-indigo-700':'text-gray-400'}">${fmtMoney(proyectado,b.moneda||'')}</p>
+              <p class="text-sm font-bold ${proyectado>0?'text-indigo-700':'text-gray-400'}">${fee>0?fmtMoney(proyectado,b.moneda||''):'—'}</p>
               <p class="text-xs text-gray-400">proyectado</p>
             </div>
           </div>
         </div>`).join('')}
         <div class="px-4 py-3 bg-indigo-50 flex items-center justify-between">
           <p class="text-sm font-semibold text-indigo-900">Total proyectado</p>
-          <p class="text-sm font-bold text-indigo-700">${fmtMoney(pipelineProb)}</p>
+          <p class="text-sm font-bold text-indigo-700">${fmtMoneyMulti(pipelineProb)}</p>
         </div>
       </div>
     </div>`:''}
@@ -1717,7 +1734,7 @@ function modalNuevoCandidato(payload) {
       <div><label class="block text-xs font-medium text-gray-600 mb-1">Nombre *</label><input name="nombre" required value="${pv.nombre||''}" class="${inputCls()}"></div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-medium text-gray-600 mb-1">Email</label><input name="contacto_email" type="text" value="${pv.email||''}" class="${inputCls()}"></div>
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Teléfono</label><input name="contacto_telefono" value="${pv.telefono||''}" class="${inputCls()}"></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Teléfono</label><input name="contacto_telefono" type="tel" value="${pv.telefono||''}" class="${inputCls()}"></div>
       </div>
       <div><label class="block text-xs font-medium text-gray-600 mb-1">LinkedIn <span class="text-gray-400 font-normal">(opcional)</span></label><input name="linkedin" type="text" placeholder="https://linkedin.com/in/..." value="${pv.linkedin||''}" class="${inputCls()}"></div>
       <div><label class="block text-xs font-medium text-gray-600 mb-1">Etapa inicial</label>
@@ -1763,7 +1780,7 @@ function modalEditarCandidato(id) {
       <div><label class="block text-xs font-medium text-gray-600 mb-1">Nombre</label><input name="nombre" value="${pv.nombre||c.nombre||''}" class="${inputCls()}"></div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-medium text-gray-600 mb-1">Email</label><input name="contacto_email" type="text" value="${pv.email||c.contacto_email||''}" class="${inputCls()}"></div>
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Teléfono</label><input name="contacto_telefono" value="${pv.telefono||c.contacto_telefono||''}" class="${inputCls()}"></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Teléfono</label><input name="contacto_telefono" type="tel" value="${pv.telefono||c.contacto_telefono||''}" class="${inputCls()}"></div>
       </div>
       <div><label class="block text-xs font-medium text-gray-600 mb-1">LinkedIn <span class="text-gray-400 font-normal">(opcional)</span></label><input name="linkedin" type="text" value="${pv.linkedin||c.linkedin||''}" class="${inputCls()}"></div>
       <div><label class="block text-xs font-medium text-gray-600 mb-1">Etapa</label>
@@ -1799,7 +1816,7 @@ async function submitEditCandidato(e,id) {
   else showToast(r.message||'Error','error');
 }
 
-function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function abrirWaConMensaje(tel,msg) {
   if (msg) navigator.clipboard.writeText(msg).then(()=>showToast('Mensaje copiado — pegalo con Cmd+V en el chat 📋'));
   window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg||'')}`,'_blank');
@@ -1883,7 +1900,8 @@ function modalVerCandidato(id) {
       ${c.cv_pdf_url?`<a href="${c.cv_pdf_url}" target="_blank" class="flex items-center gap-1.5 text-sm px-4 py-2 bg-amber-50 text-amber-700 border border-amber-100 rounded-xl font-medium hover:bg-amber-100 transition">📄 Ver CV</a>`:''}
       <button onclick="abrirFichaEntrevista('${id}')" class="flex items-center gap-1.5 text-sm px-4 py-2 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition">📋 Ficha</button>
       <button onclick="openModal('coaching','${id}')" class="flex items-center gap-1.5 text-sm px-4 py-2 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition">🎯 Coachear</button>
-      <button onclick="openModal('editar_candidato','${id}')" class="flex items-center gap-1.5 text-sm px-4 py-2 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-700 transition ml-auto">✏️ Editar</button>
+      <button onclick="descargarCandidatoCSV('${id}')" class="flex items-center gap-1.5 text-sm px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition ml-auto">⬇️ CSV</button>
+      <button onclick="openModal('editar_candidato','${id}')" class="flex items-center gap-1.5 text-sm px-4 py-2 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-700 transition">✏️ Editar</button>
       <button onclick="eliminarCandidato('${id}')" class="flex items-center gap-1.5 text-sm px-3 py-2 bg-red-50 text-red-600 border border-red-100 rounded-xl font-medium hover:bg-red-100 transition">🗑️</button>
     </div>
 
@@ -3643,7 +3661,7 @@ function renderApply() {
 
       <form id="applyForm" class="space-y-4" onsubmit="submitPostulacion(event,'${App._applyBid}')">
         <div><label class="block text-sm font-medium text-gray-700 mb-1">Tu nombre *</label><input name="nombre" required class="${inputCls()}"></div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">WhatsApp *</label><input name="contacto_telefono" required placeholder="Ej: +54 9 11 1234 5678" class="${inputCls()}"></div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1">WhatsApp *</label><input name="contacto_telefono" type="tel" required pattern="[\d\s\+\-\(\)]{6,}" title="Ingresá un número de WhatsApp válido (mínimo 6 dígitos)" placeholder="Ej: +54 9 11 1234 5678" class="${inputCls()}"></div>
         <div><label class="block text-sm font-medium text-gray-700 mb-1">Email</label><input name="contacto_email" type="email" class="${inputCls()}"></div>
         <div><label class="block text-sm font-medium text-gray-700 mb-1">Expectativa salarial</label>
           <div class="flex gap-2"><select name="expectativa_moneda" class="${selectCls()} w-24 flex-shrink-0"><option value="ARS">ARS</option><option value="USD">USD</option></select><input name="expectativa_salarial" placeholder="Ej: 3300-3500" class="${inputCls()} flex-1"></div>
